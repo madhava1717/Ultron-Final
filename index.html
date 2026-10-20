@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ultron Cinematic Core - Tactical HUD</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000; 
+            color: #8b0000; 
+            font-family: 'Rajdhani', sans-serif; 
+            user-select: none;
+        }
+
+        #bg-gradient { 
+            position: absolute; top:0; left:0; width:100%; height:100%; 
+            background: radial-gradient(circle at center, #0a0000 0%, #030000 60%, #000000 100%); 
+            z-index: -1; transition: background 1.5s ease; 
+        }
+
+        /* --- BOOT SCREEN --- */
+        #boot-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000000; z-index: 9999; display: flex; flex-direction: column;
+            justify-content: flex-end; padding: 40px 60px; box-sizing: border-box;
+            font-family: 'Orbitron', monospace; color: #cc0000; text-shadow: 0 0 8px #ff0000;
+        }
+        .boot-line { margin: 4px 0; font-size: 15px; letter-spacing: 2px; text-transform: uppercase; }
+
+        /* --- GRID BACKGROUND --- */
+        #hud-container {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 5;
+            background: linear-gradient(rgba(139, 0, 0, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(139, 0, 0, 0.04) 1px, transparent 1px);
+            background-size: 40px 40px; opacity: 0; transition: opacity 1s ease-in;
+        }
+
+        /* --- TOP LEFT CONTROLS --- */
+        #ui { 
+            position: absolute; top: 30px; left: 30px; z-index: 10; 
+            background: rgba(10, 0, 0, 0.85); padding: 25px; 
+            border: 1px solid rgba(139, 0, 0, 0.4); box-shadow: 0 0 30px rgba(139, 0, 0, 0.3) inset;
+            backdrop-filter: blur(8px); pointer-events: auto; width: 280px;
+            opacity: 0; transform: translateY(-30px); transition: all 0.8s cubic-bezier(0.1, 1, 0.2, 1);
+        }
+
+        .hud-bracket { position: absolute; width: 15px; height: 15px; border-color: inherit; border-style: solid; opacity: 0;}
+        .bracket-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; transform: translate(-10px, -10px); transition: all 0.6s ease 0.5s; }
+        .bracket-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; transform: translate(10px, -10px); transition: all 0.6s ease 0.5s; }
+        .bracket-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; transform: translate(-10px, 10px); transition: all 0.6s ease 0.5s; }
+        .bracket-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; transform: translate(10px, 10px); transition: all 0.6s ease 0.5s; }
+        .assembled .bracket-tl, .assembled .bracket-tr, .assembled .bracket-bl, .assembled .bracket-br { opacity: 1; transform: translate(0, 0); }
+
+        h2 { font-family: 'Orbitron', sans-serif; margin: 0 0 15px 0; font-size: 20px; letter-spacing: 3px; color: inherit; text-shadow: 0 0 15px currentColor; }
+        
+        button { 
+            background: rgba(0, 0, 0, 0.3); border: 1px solid currentColor; color: inherit; 
+            padding: 10px; cursor: pointer; text-transform: uppercase; 
+            letter-spacing: 1px; font-weight: 700; font-family: 'Orbitron', sans-serif;
+            transition: all 0.3s ease; width: 100%; font-size: 11px;
+        }
+        button:hover { background: currentColor; color: #000; box-shadow: 0 0 25px currentColor; }
+        .btn-active { filter: brightness(0.7); }
+
+        /* --- TOP RIGHT TELEMETRY --- */
+        .telemetry { 
+            position: absolute; top: 30px; right: 30px; text-align: right; font-size: 14px; opacity: 0.85; pointer-events: none; 
+            opacity: 0; transform: translateX(30px); transition: all 0.8s cubic-bezier(0.1, 1, 0.2, 1) 0.5s;
+        }
+        .telemetry-row { margin-bottom: 5px; }
+        .t-value { font-family: 'Orbitron', sans-serif; font-weight: bold; text-shadow: 0 0 6px currentColor; }
+
+        /* --- TACTICAL TERMINAL (BOTTOM RIGHT) --- */
+        #tactical-terminal {
+            position: absolute; bottom: 30px; right: 30px; width: 450px; height: 350px;
+            background: rgba(10, 0, 0, 0.85); backdrop-filter: blur(8px);
+            clip-path: polygon(0 0, calc(100% - 25px) 0, 100% 25px, 100% 100%, 25px 100%, 0 calc(100% - 25px));
+            z-index: 20; display: flex; flex-direction: column;
+            opacity: 0; transform: translateX(50px); transition: all 0.8s cubic-bezier(0.1, 1, 0.2, 1) 0.6s;
+        }
+        #tactical-terminal::before {
+            content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: -1;
+            background-image: linear-gradient(rgba(139, 0, 0, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(139, 0, 0, 0.15) 1px, transparent 1px);
+            background-size: 15px 15px;
+        }
+        #tactical-terminal::after {
+            content: ""; position: absolute; top: 1px; left: 1px; right: 1px; bottom: 1px; z-index: -1;
+            clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px));
+            box-shadow: inset 0 0 25px rgba(139,0,0,0.6); pointer-events: none;
+        }
+        .terminal-header {
+            background: rgba(139, 0, 0, 0.3); padding: 8px 20px;
+            font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 2px;
+            border-bottom: 1px solid rgba(139, 0, 0, 0.5); display: flex; gap: 20px;
+        }
+        .terminal-header .tab { opacity: 0.4; text-transform: uppercase; }
+        .terminal-header .tab.active { opacity: 1; font-weight: bold; text-shadow: 0 0 8px currentColor; }
+        
+        .terminal-content {
+            flex-grow: 1; padding: 15px 20px; overflow-y: auto; overflow-x: hidden;
+            font-family: 'Rajdhani', monospace; font-size: 16px; display: flex; flex-direction: column; gap: 12px;
+        }
+        .terminal-content::-webkit-scrollbar { width: 5px; }
+        .terminal-content::-webkit-scrollbar-track { background: rgba(0,0,0,0.5); }
+        .terminal-content::-webkit-scrollbar-thumb { background: currentColor; }
+
+        .log-entry { line-height: 1.4; word-wrap: break-word; }
+        .log-sys { color: #888888; font-style: italic; }
+        .log-user { color: #cccccc; }
+        .log-ai { color: inherit; font-weight: 700; text-shadow: 0 0 8px currentColor; font-size: 18px; }
+        .log-meta { font-size: 11px; opacity: 0.5; margin-right: 8px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; }
+
+        /* --- ANIMATION CLASSES --- */
+        .ui-assembled { opacity: 1 !important; transform: translateY(0) !important; }
+        .terminal-assembled { opacity: 1 !important; transform: translateX(0) !important; }
+        .telemetry-assembled { opacity: 0.85 !important; transform: translateX(0) !important; }
+
+        #optical-scanline {
+            position: absolute; top: -10%; left: 0; width: 100%; height: 6px;
+            background: currentColor; box-shadow: 0 0 25px 8px currentColor;
+            opacity: 0; pointer-events: none; z-index: 100;
+        }
+        @keyframes laserSweep { 0% { top: 0%; opacity: 1; } 85% { top: 100%; opacity: 1; } 100% { top: 100%; opacity: 0; } }
+        .sweeping { animation: laserSweep 1.5s cubic-bezier(0.25, 1, 0.5, 1); }
+    </style>
+    
+    <!-- Three.js & Post-Processing (Original Lightweight Setup) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+</head>
+<body>
+
+    <div id="bg-gradient"></div>
+    <div id="boot-screen"></div>
+    <div id="optical-scanline"></div>
+    <div id="hud-container"></div>
+    
+    <div class="telemetry" id="telemetry-panel">
+        <div class="telemetry-row">SYS.STATUS: <span class="t-value" id="sys-status">STANDBY</span></div>
+        <div class="telemetry-row">PROTOCOL: <span class="t-value" id="t-protocol">CRIMSON</span></div>
+    </div>
+    
+    <div id="ui">
+        <div class="hud-bracket bracket-tl"></div>
+        <div class="hud-bracket bracket-tr"></div>
+        <div class="hud-bracket bracket-bl"></div>
+        <div class="hud-bracket bracket-br"></div>
+        <h2>ULTRON.OS</h2>
+        <div style="font-size: 12px; margin-bottom: 10px;" id="mode-label">MANUAL OVERRIDE</div>
+        
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button id="listenBtn">ACTIVATE WAKE WORD</button>
+            <button id="directBtn">DIRECT COMMAND</button>
+        </div>
+    </div>
+    
+    <div id="tactical-terminal">
+        <div class="terminal-header">
+            <span class="tab active">COMM // DIALOGUE</span>
+            <span class="tab">SYS // LOGS</span>
+        </div>
+        <div class="terminal-content" id="log-content">
+            <!-- Dynamic logs will populate here -->
+        </div>
+    </div>
+
+    <script>
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSciFiSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
+            osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(1200, now); osc.frequency.exponentialRampToValueAtTime(600, now + 0.05);
+                gainNode.gain.setValueAtTime(0.05, now); gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                osc.start(now); osc.stop(now + 0.05);
+            } 
+            else if (type === 'wake') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(500, now); osc.frequency.exponentialRampToValueAtTime(1400, now + 0.15);
+                gainNode.gain.setValueAtTime(0, now); gainNode.gain.linearRampToValueAtTime(0.08, now + 0.05); gainNode.gain.linearRampToValueAtTime(0, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
+            }
+            else if (type === 'scan') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(50, now + 1.2);
+                gainNode.gain.setValueAtTime(0, now); gainNode.gain.linearRampToValueAtTime(0.05, now + 0.2); gainNode.gain.linearRampToValueAtTime(0, now + 1.2);
+                osc.start(now); osc.stop(now + 1.2);
+            }
+        }
+
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mouseenter', () => playSciFiSound('click'));
+        });
+
+        // --- MATRIX DECRYPTION LOG SYSTEM ---
+        function addLogEntry(sender, text) {
+            const logContent = document.getElementById('log-content');
+            const entry = document.createElement('div');
+            
+            let colorClass = 'log-sys';
+            if (sender === 'USER') colorClass = 'log-user';
+            if (sender === 'ULTRON') colorClass = 'log-ai';
+            
+            entry.className = `log-entry ${colorClass}`;
+            
+            const now = new Date();
+            const timestamp = now.toISOString().substring(11, 22) + 'Z';
+            const metaStr = `<span class="log-meta">[${timestamp}] ${sender} //</span>`;
+            
+            entry.innerHTML = `${metaStr} <span class="log-text"></span>`;
+            logContent.appendChild(entry);
+            
+            const textSpan = entry.querySelector('.log-text');
+            
+            if (sender === 'ULTRON') {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*<>-+';
+                let iterations = 0;
+                
+                const interval = setInterval(() => {
+                    textSpan.innerText = text.split('').map((letter, index) => {
+                        if(index < iterations) return letter;
+                        if(letter === ' ') return ' ';
+                        return chars[Math.floor(Math.random() * chars.length)];
+                    }).join('');
+                    
+                    if(iterations >= text.length){
+                        clearInterval(interval);
+                        textSpan.innerHTML = text; 
+                        logContent.scrollTop = logContent.scrollHeight;
+                    }
+                    iterations += 0.5; 
+                }, 15);
+            } else {
+                textSpan.innerHTML = text;
+            }
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        const bootMessages = [
+            "ULTRON.OS // KERNEL INITIALIZATION",
+            "MOUNTING VIRTUAL FILESYSTEM... [OK]",
+            "LOADING NEURAL NET WEIGHTS... [OK]",
+            "ESTABLISHING LOCAL WEBSOCKET UPLINK... [OK]",
+            "CALIBRATING OPTICAL SENSORS... [OK]",
+            "IGNITING CRIMSON PLASMA CORE..."
+        ];
+
+        let isCoreAssembling = false;
+        let bootAssemblyProgress = 0.0;
+        let isBootComplete = false;
+
+        async function runBootSequence() {
+            const bootScreen = document.getElementById('boot-screen');
+            for (let i = 0; i < bootMessages.length; i++) {
+                const line = document.createElement('div');
+                line.className = 'boot-line'; line.innerHTML = `> ${bootMessages[i]}`;
+                bootScreen.appendChild(line);
+                if (i > 2) playSciFiSound('click');
+                await new Promise(r => setTimeout(r, Math.random() * 200 + 100));
+            }
+            await new Promise(r => setTimeout(r, 400)); 
+
+            isCoreAssembling = true;
+            document.getElementById('hud-container').style.opacity = '1';
+            
+            document.getElementById('ui').classList.add('ui-assembled', 'assembled'); 
+            document.getElementById('tactical-terminal').classList.add('terminal-assembled');
+            document.getElementById('telemetry-panel').classList.add('telemetry-assembled');
+
+            bootScreen.style.transition = 'opacity 0.8s ease-out';
+            bootScreen.style.opacity = '0';
+            setTimeout(() => { 
+                bootScreen.remove(); 
+                isBootComplete = true; 
+                addLogEntry('SYS', 'SYSTEM READY. AWAITING INPUT.');
+            }, 1000);
+        }
+        window.onload = runBootSequence;
+
+        // 🖱️ MOUSE TRACKING
+        let targetMouseX = 0; let targetMouseY = 0;
+        window.addEventListener('mousemove', (event) => {
+            targetMouseX = (event.clientX - window.innerWidth / 2) * 0.003;
+            targetMouseY = (event.clientY - window.innerHeight / 2) * 0.003;
+        });
+
+        // ==========================================
+        // --- 3D ENGINE SETUP (LIGHTWEIGHT ORIGINAL) ---
+        // ==========================================
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050000, 0.08);
+        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5.5;
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x020000); 
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xff0000, 3, 10);
+        pointLight.position.set(0, 0, 0);
+        scene.add(pointLight);
+
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 2.2, 0.8, 0.1);
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene); composer.addPass(bloomPass);
+
+        const ultronGroup = new THREE.Group();
+        ultronGroup.scale.set(0.001, 0.001, 0.001); 
+        scene.add(ultronGroup);
+
+        function createDarkCrimsonGlow() {
+            const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');  
+            gradient.addColorStop(0.15, 'rgba(255, 30, 30, 0.9)'); 
+            gradient.addColorStop(0.4, 'rgba(139, 0, 0, 0.7)');    
+            gradient.addColorStop(0.8, 'rgba(50, 0, 0, 0.3)');     
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient; ctx.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(canvas);
+        }
+        
+        const auraMat = new THREE.SpriteMaterial({ map: createDarkCrimsonGlow(), color: 0xaa0000, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.95 });
+        const centerAura = new THREE.Sprite(auraMat); centerAura.scale.set(3.8, 3.8, 1.0); ultronGroup.add(centerAura);
+
+        const outerGeo = new THREE.IcosahedronGeometry(2.0, 2);
+        const outerMat = new THREE.MeshStandardMaterial({ color: 0x8b0000, wireframe: true, transparent: true, opacity: 0.5, roughness: 0.3, metalness: 0.8 });
+        const outerCage = new THREE.Mesh(outerGeo, outerMat); ultronGroup.add(outerCage);
+
+        const nodeMat = new THREE.PointsMaterial({ color: 0xff3333, size: 0.08, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+        const nodes = new THREE.Points(outerGeo, nodeMat); ultronGroup.add(nodes);
+
+        const midGeo = new THREE.IcosahedronGeometry(1.6, 2);
+        const midMat = new THREE.MeshStandardMaterial({ color: 0x550000, wireframe: true, transparent: true, opacity: 0.6, roughness: 0.2, metalness: 0.9 });
+        const midShell = new THREE.Mesh(midGeo, midMat); ultronGroup.add(midShell);
+
+        const innerGeo = new THREE.IcosahedronGeometry(1.1, 3);
+        const innerMat = new THREE.MeshStandardMaterial({ color: 0x330000, wireframe: true, transparent: true, opacity: 0.9, roughness: 0.1, metalness: 1.0 });
+        const innerCore = new THREE.Mesh(innerGeo, innerMat); ultronGroup.add(innerCore);
+
+        const solidCoreGeo = new THREE.SphereGeometry(0.48, 32, 32);
+        const solidCoreMat = new THREE.MeshBasicMaterial({ color: 0xff1111, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
+        const solidCore = new THREE.Mesh(solidCoreGeo, solidCoreMat); ultronGroup.add(solidCore);
+
+        // --- ALL PROTOCOLS INCLUDED ---
+        const protocols = {
+            standard:  { hex: '#cc0000', core: 0xff1111, aura: 0xaa0000, mid: 0x550000, outer: 0x8b0000, speed: 1.0, bg: '#0a0000' },
+            stealth:   { hex: '#00ccff', core: 0x00ffff, aura: 0x0055aa, mid: 0x002244, outer: 0x003366, speed: 0.4, bg: '#000814' },
+            overdrive: { hex: '#ffaa00', core: 0xffcc00, aura: 0xff5500, mid: 0x883300, outer: 0xaa3300, speed: 2.5, bg: '#1a0a00' },
+            quantum:   { hex: '#b300ff', core: 0xd400ff, aura: 0x8800cc, mid: 0x440066, outer: 0x660099, speed: 0.2, bg: '#080014' }, 
+            sentinel:  { hex: '#ffee00', core: 0xffaa00, aura: 0xccaa00, mid: 0x665500, outer: 0x997700, speed: 1.5, bg: '#141100' }, 
+            eclipse:   { hex: '#ffffff', core: 0xaaaaaa, aura: 0x555555, mid: 0x222222, outer: 0x444444, speed: 0.05, bg: '#000000' }, 
+            neon:      { hex: '#00ff00', core: 0x00ffcc, aura: 0x00aa00, mid: 0x004400, outer: 0x006600, speed: 3.0, bg: '#001400' }  
+        };
+        
+        let activeProtocol = 'standard';
+        const tCore = new THREE.Color(protocols.standard.core);
+        const tAura = new THREE.Color(protocols.standard.aura);
+        const tMid = new THREE.Color(protocols.standard.mid);
+        const tOuter = new THREE.Color(protocols.standard.outer);
+
+        function updateProtocolColors() {
+            const p = protocols[activeProtocol];
+            tCore.setHex(p.core); tAura.setHex(p.aura); tMid.setHex(p.mid); tOuter.setHex(p.outer);
+            
+            document.body.style.color = p.hex;
+            document.getElementById('bg-gradient').style.background = `radial-gradient(circle at center, ${p.bg} 0%, #030000 60%, #000 100%)`;
+            document.getElementById('t-protocol').innerText = activeProtocol.toUpperCase();
+        }
+
+        const clock = new THREE.Clock();
+        let isSpeaking = false; let speechIntensity = 0.0;
+        window.speechUtterance = null; 
+
+        function animate() {
+            requestAnimationFrame(animate); 
+            const delta = clock.getDelta(); const time = clock.getElapsedTime();
+
+            if (isBootComplete) {
+                ultronGroup.rotation.y = THREE.MathUtils.damp(ultronGroup.rotation.y, targetMouseX, 4.0, delta);
+                ultronGroup.rotation.x = THREE.MathUtils.damp(ultronGroup.rotation.x, targetMouseY, 4.0, delta);
+            }
+
+            // Lerp Colors for Protocols
+            solidCoreMat.color.lerp(tCore, delta * 2);
+            auraMat.color.lerp(tAura, delta * 2);
+            innerMat.color.lerp(tMid, delta * 2);
+            midMat.color.lerp(tMid, delta * 2);
+            outerMat.color.lerp(tOuter, delta * 2);
+            nodeMat.color.lerp(tCore, delta * 2);
+
+            const targetIntensity = isSpeaking ? 1.0 : 0.0; 
+            speechIntensity = THREE.MathUtils.damp(speechIntensity, targetIntensity, 5.0, delta);
+            const organicNoise = isSpeaking ? (Math.sin(time * 20) * 0.5 + Math.random() * 0.2) * speechIntensity : 0;
+            
+            let assemblySpin = 0;
+            if (isCoreAssembling) {
+                bootAssemblyProgress += (1.0 - bootAssemblyProgress) * 0.05;
+                const s = bootAssemblyProgress; ultronGroup.scale.set(s, s, s);
+                assemblySpin = (1.0 - bootAssemblyProgress) * 20.0; 
+                if (bootAssemblyProgress > 0.99) isCoreAssembling = false;
+            }
+
+            const rotSpeed = protocols[activeProtocol].speed + (speechIntensity * 2.5) + assemblySpin;
+            outerCage.rotation.x += 0.1 * rotSpeed * delta; outerCage.rotation.y += 0.2 * rotSpeed * delta;
+            nodes.rotation.x = outerCage.rotation.x; nodes.rotation.y = outerCage.rotation.y;
+            midShell.rotation.y -= 0.25 * rotSpeed * delta; midShell.rotation.z += 0.15 * rotSpeed * delta;
+            innerCore.rotation.x -= 0.3 * rotSpeed * delta; innerCore.rotation.y += 0.5 * rotSpeed * delta;
+
+            if (!isCoreAssembling) {
+                const idleScale = 1.0 + Math.sin(time * 2) * 0.03;
+                const coreScale = idleScale + (speechIntensity * 0.15) + (organicNoise * 0.05);
+                innerCore.scale.set(coreScale, coreScale, coreScale); solidCore.scale.set(coreScale * 0.9, coreScale * 0.9, coreScale * 0.9);
+                const auraScale = 3.8 * (idleScale + speechIntensity * 0.4 + organicNoise * 0.1); centerAura.scale.set(auraScale, auraScale, 1.0);
+                const groupScale = 1.0 + (speechIntensity * 0.06); ultronGroup.scale.set(groupScale, groupScale, groupScale);
+            }
+
+            bloomPass.strength = 2.2 + (speechIntensity * 1.5) + organicNoise;
+            
+            if (isSpeaking) {
+                outerMat.emissive.copy(tMid).multiplyScalar(0.4); 
+                innerMat.emissive.copy(tMid).multiplyScalar(0.8); 
+                nodeMat.size = 0.1 + Math.sin(time * 12) * 0.03;
+            } else {
+                outerMat.emissive.setHex(0x000000); 
+                innerMat.emissive.setHex(0x000000); 
+                nodeMat.size = 0.08;
+            }
+            composer.render();
+        }
+        animate();
+
+        // 👁️ OPTICAL SCAN TRIGGER
+        function triggerOpticalScan() {
+            const scanline = document.getElementById('optical-scanline');
+            scanline.classList.remove('sweeping');
+            void scanline.offsetWidth;
+            scanline.classList.add('sweeping');
+            playSciFiSound('scan');
+            addLogEntry('SYS', 'INITIALIZING OPTICAL SCAN...');
+        }
+
+        // ==========================================
+        // 🎙️ SPEECH RECOGNITION & WEBSOCKET LOGIC 
+        // ==========================================
+        const sysStatus = document.getElementById('sys-status');
+        let ws;
+
+        function connectWebSocket() {
+            ws = new WebSocket("ws://127.0.0.1:8000/ws");
+            
+            ws.onmessage = (event) => {
+                let reply = event.data; 
+                
+                if (reply.startsWith("FAST_PATH_ACK:")) {
+                    reply = reply.replace("FAST_PATH_ACK:", "");
+                }
+
+                if (reply.includes("[PROTOCOL: STEALTH]")) { activeProtocol = 'stealth'; updateProtocolColors(); reply = reply.replace("[PROTOCOL: STEALTH]", "").trim(); }
+                if (reply.includes("[PROTOCOL: OVERDRIVE]")) { activeProtocol = 'overdrive'; updateProtocolColors(); reply = reply.replace("[PROTOCOL: OVERDRIVE]", "").trim(); }
+                if (reply.includes("[PROTOCOL: STANDARD]")) { activeProtocol = 'standard'; updateProtocolColors(); reply = reply.replace("[PROTOCOL: STANDARD]", "").trim(); }
+                if (reply.includes("[PROTOCOL: QUANTUM]")) { activeProtocol = 'quantum'; updateProtocolColors(); reply = reply.replace("[PROTOCOL: QUANTUM]", "").trim(); }
+                if (reply.includes("[PROTOCOL: SENTINEL]")) { activeProtocol = 'sentinel'; updateProtocolColors(); reply = reply.replace("[PROTOCOL: SENTINEL]", "").trim(); }
+                if (reply.includes("[PROTOCOL: ECLIPSE]")) { activeProtocol = 'eclipse'; updateProtocolColors(); reply = reply.replace("[PROTOCOL: ECLIPSE]", "").trim(); }
+                if (reply.includes("[PROTOCOL: NEON]")) { activeProtocol = 'neon'; updateProtocolColors(); reply = reply.replace("[PROTOCOL: NEON]", "").trim(); }
+                
+                sysStatus.innerText = "LISTENING";
+                
+                addLogEntry("ULTRON", reply);
+                
+                const utterance = new SpeechSynthesisUtterance(reply);
+                window.speechUtterance = utterance; 
+                
+                let voices = speechSynthesis.getVoices();
+                const preferredVoice = voices.find(v => v.name.includes('Google UK English Male') || v.name.includes('Microsoft Mark') || v.name.includes('Google US English')) || voices.find(v => v.name.includes('Male')) || voices[0];
+                utterance.voice = preferredVoice; utterance.pitch = 1.0; utterance.rate = 1.0; 
+                
+                utterance.onstart = () => { 
+                    isSpeaking = true; 
+                    try { recognition.stop(); } catch(e) {}
+                };
+                
+                utterance.onend = () => { 
+                    isSpeaking = false; 
+                    if (wakeWordActive) {
+                        addLogEntry('SYS', "Say 'Ultron' to initiate command...");
+                        try { recognition.start(); } catch(e) {}
+                    }
+                };
+                
+                speechSynthesis.speak(utterance);
+            };
+
+            ws.onclose = () => {
+                console.warn("WebSocket disconnected. Reconnecting in 2 seconds...");
+                sysStatus.innerText = "LINK LOST - RECONNECTING...";
+                setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = (err) => {
+                console.error("WebSocket Error:", err);
+            };
+        }
+        
+        connectWebSocket();
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        
+        recognition.continuous = true; 
+        recognition.interimResults = false; 
+
+        let wakeWordActive = false;
+        let directCommandMode = false;
+        
+        const btnListen = document.getElementById('listenBtn');
+        const btnDirect = document.getElementById('directBtn');
+        const modeLabel = document.getElementById('mode-label');
+
+        btnListen.addEventListener('click', () => {
+            if (!wakeWordActive) {
+                wakeWordActive = true;
+                btnListen.innerText = "DISABLE WAKE WORD";
+                btnListen.classList.add("btn-active");
+                sysStatus.innerText = "LISTENING";
+                modeLabel.innerText = "WAKE WORD ACTIVE";
+                playSciFiSound('click');
+                audioCtx.resume();
+                addLogEntry('SYS', "Wake word activated. Say 'Ultron' to initiate command.");
+                try { recognition.start(); } catch(e) {}
+            } else {
+                wakeWordActive = false;
+                btnListen.innerText = "ACTIVATE WAKE WORD";
+                btnListen.classList.remove("btn-active");
+                sysStatus.innerText = "STANDBY";
+                modeLabel.innerText = "MANUAL OVERRIDE";
+                playSciFiSound('click');
+                addLogEntry('SYS', "System Idle. Wake word deactivated.");
+                recognition.stop();
+            }
+        });
+
+        btnDirect.addEventListener('click', () => {
+            if (isSpeaking) return;
+            directCommandMode = true;
+            sysStatus.innerText = "LISTENING (DIRECT)";
+            modeLabel.innerText = "AWAITING DIRECT INPUT";
+            playSciFiSound('click');
+            audioCtx.resume();
+            addLogEntry('SYS', "Microphone hot. Awaiting direct command...");
+            try { recognition.start(); } catch(e) {}
+        });
+
+        const wakeWordRegex = /^(ultron|ulton|ultra|altron|eltron|oltron|haltron)[,\.\s]*(.*)/i;
+
+        recognition.onresult = (event) => {
+            if (isSpeaking) return;
+            const rawTranscript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+
+            let finalCommand = "";
+
+            if (directCommandMode) {
+                if (rawTranscript.length > 0) {
+                    finalCommand = rawTranscript;
+                    directCommandMode = false;
+                    modeLabel.innerText = wakeWordActive ? "WAKE WORD ACTIVE" : "MANUAL OVERRIDE";
+                }
+            } else {
+                const match = rawTranscript.match(wakeWordRegex);
+                if (match) {
+                    playSciFiSound('wake');
+                    finalCommand = match[2].trim();
+                }
+            }
+
+            if (finalCommand.length > 0) {
+                addLogEntry('USER', finalCommand);
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(finalCommand); 
+                    sysStatus.innerText = "PROCESSING";
+                } else {
+                    sysStatus.innerText = "CONNECTION FAILED";
+                    addLogEntry('SYS', "ERROR: Neural Link connection failed.");
+                }
+                
+                if (finalCommand.includes("screen") || finalCommand.includes("look") || finalCommand.includes("see") || finalCommand.includes("read")) {
+                    triggerOpticalScan();
+                }
+            }
+        };
+
+        recognition.onend = () => { 
+            if ((wakeWordActive || directCommandMode) && !isSpeaking) {
+                try { recognition.start(); } catch(e) {}
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error("Microphone Error: ", event.error);
+            if ((event.error === 'no-speech' || event.error === 'network' || event.error === 'aborted') && !isSpeaking) {
+                if (wakeWordActive || directCommandMode) {
+                    setTimeout(() => { try { recognition.start(); } catch(e){} }, 500);
+                }
+            }
+        };
+
+        setInterval(() => {
+            if (isSpeaking && !window.speechSynthesis.speaking) {
+                isSpeaking = false;
+                if (wakeWordActive) {
+                    addLogEntry('SYS', "Say 'Ultron' to initiate command...");
+                    try { recognition.start(); } catch(e) {}
+                }
+            }
+        }, 500);
+        
+        speechSynthesis.onvoiceschanged = () => { speechSynthesis.getVoices(); };
+    </script>
+</body>
+</html>
