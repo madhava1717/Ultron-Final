@@ -18,7 +18,7 @@ app.add_middleware(
 )
 
 # Yahan apni working Groq API Key daalein
-GROQ_API_KEY = os.getenv(GROQ_API_KEY = os.getenv("GROQ_API_KEY"))
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 groq_client = AsyncGroq(api_key=GROQ_API_KEY)
 
 def search_web(query: str) -> str:
